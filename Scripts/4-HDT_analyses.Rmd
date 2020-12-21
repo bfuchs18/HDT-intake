@@ -1,0 +1,1122 @@
+---
+title: "HDT paper analyses"
+author: "Bari Fuchs" 
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+This script was written by Bari Fuchs to perform analyses for the HDT and intake study.
+
+# Load Dataset
+```{r load dataset, echo = TRUE}
+
+# set basedir to navigate to HDT directory (modify if on different machine)
+basedir <- ("~/OneDrive - The Pennsylvania State University/b-childfoodlab_Shared/Inactive_Studies/DMK_Study/AB_reprocess/HDT/HDT-intake-git")
+
+# set directory for generated datasets
+setwd(file.path(basedir,"Data/GeneratedDatabases/"))
+
+## Load dataset
+HDT_plus <- read.csv("HDT_plus.csv", stringsAsFactors = FALSE)
+
+```
+
+# Dataset management
+```{r Participant characteristic variables, include=FALSE}
+# remove subject 137 -- this subject did not complete any visits
+HDT_plus <- subset(HDT_plus, subjID!="137 DROPPED")
+
+
+#### Child age ####
+
+HDT_plus$Date_VB <- as.Date(HDT_plus$Date_VB, format = "%m/%d/%y")
+HDT_plus$Child_DOB <- as.Date(HDT_plus$Child_DOB, format = "%m/%d/%y")
+HDT_plus$age_VB <- as.numeric((difftime(HDT_plus$Date_VB, HDT_plus$Child_DOB, units = "day"))/365)
+
+#### Child weight status ####
+# Original coding of Child_BMI_Class: 1 = Healthy weight, 2 = overweight, 3 = obesity
+## Make dichotomus child weight class variable with 1=HW 2=OW/OB
+HDT_plus$Child_BMI_class2 = ifelse(HDT_plus$Child_BMI_Class == 1, "HW", "OW")
+
+
+#### Maternal education ####
+# Make maternal education variable based on parent 1 sex
+HDT_plus$Mom_edu <- NA
+HDT_plus$Mom_edu_other <- NA
+for (i in 1:nrow(HDT_plus)) {
+  if((HDT_plus$Parent_1_Sex[i] == "1")) {
+    HDT_plus$Mom_edu[i] <- HDT_plus$Par_1_Level_of_edu[i]
+    HDT_plus$Mom_edu_other[i] <- HDT_plus$Par_1_Edu_OTHER[i]
+  }
+  else if (HDT_plus$Parent_2_Sex[i] == "1") {
+    HDT_plus$Mom_edu[i] <- HDT_plus$Partners_education[i]
+    HDT_plus$Mom_edu_other[i] <- HDT_plus$Partner_Edu_OTHER[i]
+  }
+}
+
+# Create new maternal education variable with 3 levels
+# Original levels: (1=HighSchool,  2=Associates, 3=Technical, 4=Bachelors, 5=PhD, 6=MD, 7=JD, 8=Other)
+# New Variable levels: (1= >BA, 2=BA, 3=>BA)
+HDT_plus$Mom_edu_recode <- NA
+HDT_plus$Mom_edu_recode = ifelse(HDT_plus$Mom_edu <4, 1, ifelse(HDT_plus$Mom_edu == 4, 2, ifelse (HDT_plus$Mom_edu < 8, 3, ifelse(HDT_plus$Mom_edu_other == "Masters" | HDT_plus$Mom_edu_other == "ms" | HDT_plus$Mom_edu_other == "Master" | HDT_plus$Mom_edu_other == "MLS" | HDT_plus$Mom_edu_other == "MBA", 3, ifelse(HDT_plus$Mom_edu_other == "10th grade" | HDT_plus$Mom_edu_other == "Almost bachelor 15yrs" | HDT_plus$Mom_edu_other == "Some college" | HDT_plus$Mom_edu_other == "Highschool", 1, HDT_plus$Mom_edu_recode)))))
+
+
+#### Income ####
+
+# Origincal Coding of income: Income(1'<$20K' 2'$21-35K' 3'$36-50K' 4'$51-75K' 5'$76-100K' 6'>$100K')
+# make income variable with 3 brackets: >50k, 50-100k, >100k
+HDT_plus$Income2 <- NA
+HDT_plus$Income2[HDT_plus$Income < 4] <- 1
+HDT_plus$Income2[HDT_plus$Income == 4 ] <- 2
+HDT_plus$Income2[HDT_plus$Income == 5 ] <- 2
+HDT_plus$Income2[HDT_plus$Income >= 6 ] <- 3
+xtabs(~Income2,data = HDT_plus)
+```
+
+```{r recode buffet meals for ID 169 to NA, echo = TRUE}
+
+# subject 169 does not have data for buffet meal. This visit did not happen.
+
+#recode buffet meal variables for subject 169 to NA
+HDT_plus[HDT_plus$subjID==169, "VC_Buffet_Total_Percent_Eaten"] <- NA
+HDT_plus[HDT_plus$subjID==169, "VC_Buffet_Total_Cal_Eaten"] <- NA
+HDT_plus[HDT_plus$subjID==169, "VC_buffet_Total_grams_eaten"] <- NA
+HDT_plus[HDT_plus$subjID==169, "VC_Buffet_Total_Cal_Served"] <- NA
+
+```
+
+
+# Demographics
+```{r Demographics, include=T}
+library(psych)
+library(plyr)
+
+# Sex: 0=boy, 1=girl
+xtabs(~Child_Sex,data = HDT_plus)
+
+# Weight status: (HW = healthy weight, OW = overweight/obesity)
+xtabs(~Child_BMI_class2,data = HDT_plus)
+
+# Child Age: variable was calculated by dividing childs age in DAYS by 365 (decimal reflects proportion of year)
+# Note, age was calculated based on the day that the HDT task took place
+psych::describe(HDT_plus$age_VB)
+range(HDT_plus$age_VB)
+mean(HDT_plus$age_VB) 
+sd(HDT_plus$age_VB)
+
+# BMI-z
+psych::describe(HDT_plus$Child_BMI_zscore)
+mean(HDT_plus$Child_BMI_zscore)
+sd(HDT_plus$Child_BMI_zscore)
+range(HDT_plus$Child_BMI_zscore)
+
+# Ethnicity: 1=Hispanic; 2=Not hispanic or Latino
+xtabs(~Child_Ethnicity,data = HDT_plus)
+
+# Child race (1=American Indian/ Alaskan Native; 2 = Asian; 3=Black; 4=White; 5=Hawaiian//Pacific Islander; 6=mixed; 7=other)
+xtabs(~Child_Race,data = HDT_plus)
+
+# Income2: 1= >50k, 2= 50-100k, 3= >100k
+xtabs(~Income2,data = HDT_plus)
+
+# Materal Education: 1= >BA, 2=BA, 3=>BA
+xtabs(~HDT_plus$Mom_edu_recode)
+
+```
+
+
+# Distributions and Descriptive statistics
+
+```{r pre-meal fullness, include=FALSE}
+# Examine distributions
+hist(HDT_plus$VB_FF_pre_SLTM)
+hist(HDT_plus$VB_FF_pre_EAH)
+hist(HDT_plus$VC_FF_pre_Buffet)
+
+# Descriptive statistics
+psych::describe(HDT_plus$VB_FF_pre_SLTM)
+psych::describe(HDT_plus$VB_FF_pre_EAH)
+psych::describe(HDT_plus$VC_FF_pre_Buffet)
+
+```
+
+```{r intake (kcal), include=FALSE}
+
+# Examine distributions
+hist(HDT_plus$VB_SLTM_Total_Cal_Eaten, breaks = 50)
+hist(HDT_plus$VB_EAH_Total_Cal_Eaten, breaks = 50)
+hist(HDT_plus$VC_Buffet_Total_Cal_Eaten, breaks = 50)
+
+# Descriptive statistics
+psych::describe(HDT_plus$VB_SLTM_Total_Cal_Eaten)
+psych::describe(HDT_plus$VB_EAH_Total_Cal_Eaten)
+psych::describe(HDT_plus$VC_Buffet_Total_Cal_Eaten)
+```
+
+```{r behavioral decision making metrics , include=FALSE}
+
+# These variables were calculated using the following script:
+# HDT_IGT_Toolbox_1_AnalyzeRawBehavior_bygroup_byblock_bydeck_bf2.m
+# modified from the RomainLigneul toolbox
+
+#### Examine distributions ####
+hist(HDT_plus$netscore, breaks = 50)
+hist(HDT_plus$LS_netloss, breaks = 50)
+hist(HDT_plus$WS_nonetloss, breaks = 50)
+
+# Distributions for WS/LS calculated with alternative methods
+hist(HDT_plus$WS_gain, breaks = 50) # Win = net gain
+hist(HDT_plus$LS_nogain, breaks = 50) # Lose = net 0 or negative
+hist(HDT_plus$WS_noloss, breaks = 50) # Win = no loss presented
+hist(HDT_plus$LS_loss, breaks = 50) # Lose = loss is presented
+
+#### Descriptive statistics ####
+describe(HDT_plus$WS_nonetloss) # Win = net 0 or positive 
+describe(HDT_plus$LS_netloss) # Lose = net negative
+describe(HDT_plus$netscore)
+summary(HDT_plus$WS_nonetloss)
+summary(HDT_plus$LS_netloss)
+summary(HDT_plus$netscore)
+
+```
+
+```{r food liking, include=FALSE}
+library(dplyr)
+# Get mean (sd) liking rating for each food
+HDT_food_liking <- select(HDT_plus, starts_with("VB_Like"),starts_with("VC_Like")) # Make df of liking variables
+HDT_food_liking_describe <- round((HDT_food_liking %>% summarise_all(mean, na.rm = TRUE)), digits = 2) # find mean
+HDT_food_liking_sd <- round((HDT_food_liking %>% summarise_all(sd, na.rm = TRUE)), digits = 2) #find sd
+HDT_food_liking_describe <- as.data.frame(t(HDT_food_liking_describe %>% rbind(HDT_food_liking_sd))) #combine mean and sd, transpose and convert matrix to df
+colnames(HDT_food_liking_describe) <- c("mean", "sd")
+
+# Add column to indicate meal
+HDT_food_liking_describe["meal"] <- NA
+for (i in 1:nrow(HDT_food_liking_describe)) {
+  if(grepl("VC_", rownames(HDT_food_liking_describe)[i])){
+    HDT_food_liking_describe[i,3] <- "buffet" }
+  else if (grepl("_MC|_GB|_Broc|_tom|_Grape|_cake|_water", rownames(HDT_food_liking_describe)[i])){
+    HDT_food_liking_describe[i,3] <- "standard" }
+  else {
+    HDT_food_liking_describe[i,3] <- "EAH"
+  }
+}
+
+# Get liking rating for each meal, for each child (average across foods in meal)
+# make 3 new columns 
+HDT_food_liking$subjID <- HDT_plus$subjID
+HDT_food_liking["standard_food_meanlike"] <- NA
+HDT_food_liking["standard_foodwater_meanlike"] <- NA
+HDT_food_liking["eah_meanlike"] <- NA
+HDT_food_liking["buffet_food_meanlike"] <- NA
+HDT_food_liking["buffet_fooddrink_meanlike"] <- NA
+
+for (i in 1:nrow(HDT_food_liking)) {
+  HDT_food_liking$standard_food_meanlike <- rowMeans(subset(HDT_food_liking, select = c(1:6)), na.rm = T)
+  HDT_food_liking$standard_foodwater_meanlike <- rowMeans(subset(HDT_food_liking, select = c(1:7)), na.rm = T)
+  HDT_food_liking$eah_meanlike <- rowMeans(subset(HDT_food_liking, select = c(8:17)), na.rm = T)
+  HDT_food_liking$buffet_food_meanlike <- rowMeans(subset(HDT_food_liking, select = c(18:25,27:30,32)), na.rm = T)
+  HDT_food_liking$buffet_fooddrink_meanlike <- rowMeans(subset(HDT_food_liking, select = c(18:32)), na.rm = T)
+}
+
+# Find the average rating for each meal (average meal ratings across children)
+psych::describe(HDT_food_liking$standard_food_meanlike)
+psych::describe(HDT_food_liking$standard_foodwater_meanlike)
+psych::describe(HDT_food_liking$eah_meanlike)
+psych::describe(HDT_food_liking$buffet_food_meanlike)
+psych::describe(HDT_food_liking$buffet_fooddrink_meanlike)
+```
+
+```{r VPP model parameters, include=T}
+library(moments)
+
+#### Examine Distributions ####
+
+hist(HDT_plus$A_mean, breaks = 50)
+hist(HDT_plus$alpha_mean, breaks = 50) #Right skewed
+hist(HDT_plus$cons_mean, breaks = 50) #Right skewed
+hist(HDT_plus$lambda_mean, breaks = 50) #Right skewed
+hist(HDT_plus$epP_mean, breaks = 50)
+hist(HDT_plus$epN_mean, breaks = 50) #Right skewed
+hist(HDT_plus$K_mean, breaks = 50) # symmetric 
+hist(HDT_plus$w_mean, breaks = 50) # left-skewed
+
+plot(density(HDT_plus$lambda_mean)) #Right skewed
+plot(density(HDT_plus$A_mean, breaks = 50)) #Right skewed
+
+# Create new variable for log lambda
+HDT_plus$lambda_log = log(HDT_plus$lambda_mean)
+hist(HDT_plus$lambda_log)
+
+#### Examine skewness and kurtosis  ####
+
+HDT_VPP <- as.matrix(HDT_plus[c("A_mean", "alpha_mean", "lambda_mean", "epP_mean", "epN_mean", "K_mean", "w_mean", "cons_mean", "lambda_log")])
+
+apply(HDT_VPP, 2, skewness)
+apply(HDT_VPP, 2, kurtosis)
+
+#### central tendency and variation ####
+## assessing median and IQR because of non-normal distributions
+
+
+# make data.frame with a row for each DM parameter, columns for median and IQR values
+Param_descriptives = data.frame(matrix(nrow = 8, ncol = 3))
+rownames(Param_descriptives) <- c("A_mean", "alpha_mean", "lambda_mean", "epP_mean", "epN_mean", "K_mean", "w_mean", "cons_mean")
+colnames(Param_descriptives) <- c("Q1","Median","Q3")
+
+ParmNameVect <- rownames(Param_descriptives)
+#install.packages("moments")
+library(moments)
+for (paramName in ParmNameVect) {
+  sumtab <- summary(HDT_plus[,paramName])
+  Q1 <- sumtab[[2]]
+  Param_descriptives[paramName,"Q1"] <- Q1
+  Med <- sumtab[[3]]
+  Param_descriptives[paramName,"Median"] <- Med
+  Q3 <- sumtab[[5]]
+  Param_descriptives[paramName,"Q3"] <- Q3
+}
+
+round(Param_descriptives,2)
+
+
+```
+
+# Intake and particpant characteristic associations
+```{r Age and intake, include=T}
+# age and meals
+cor.test(HDT_plus$VB_SLTM_Total_Cal_Eaten, HDT_plus$age_VB) #positive trend
+cor.test(HDT_plus$VB_EAH_Total_Cal_Eaten, HDT_plus$age_VB) # NA
+cor.test(HDT_plus$VC_Buffet_Total_Cal_Eaten, HDT_plus$age_VB) #positive assoc
+
+```
+
+```{r Sex and intake, include=T}
+
+#sex and intake t-tests
+t.test(HDT_plus$VB_SLTM_Total_Cal_Eaten ~ HDT_plus$Child_Sex) # NA
+t.test(HDT_plus$VB_EAH_Total_Cal_Eaten ~ HDT_plus$Child_Sex) # trend B>G
+t.test(HDT_plus$VC_Buffet_Total_Cal_Eaten ~ HDT_plus$Child_Sex) # NA
+```
+
+```{r Fullness and intake, include=T}
+
+# Correlations between pre-meal fullness and intake
+cor.test(HDT_plus$VB_FF_pre_SLTM, HDT_plus$VB_SLTM_Total_Cal_Eaten) #p=.046
+cor.test(HDT_plus$VB_FF_pre_EAH, HDT_plus$VB_EAH_Total_Cal_Eaten)
+cor.test(HDT_plus$VC_FF_pre_Buffet, HDT_plus$VC_Buffet_Total_Cal_Eaten)
+```
+
+# Decision making associations
+```{r VPP vs VPP, include=T}
+library("Hmisc")
+library("RcmdrMisc")
+library("matrixcalc")
+
+# create matrix with VPP parameters
+HDT_VPP_matrix <- as.matrix(HDT_plus[c("A_mean", "alpha_mean", "lambda_mean", "epP_mean", "epN_mean", "K_mean", "w_mean", "cons_mean")])
+
+# run Spearman rank correlations between VPP parameters
+VPP_cormat<-rcorr(HDT_VPP_matrix, type=c("spearman"))
+r_VPP_cormat <- VPP_cormat$r # Matrix of correlation coeficients
+p_VPP_cormat <- VPP_cormat$P # Matrix of unadjusted p-values
+
+# adjust p-values of correlation matrix with p.adjust
+p_VPP_cormat[lower.tri(p_VPP_cormat)] <- NA # Isolate half of matrix
+p_unadjust_VPP_vector <- as.vector(p_VPP_cormat) # Transpose matrix to vector
+p_adjust_VPP_vector <- p.adjust(p_unadjust_VPP_vector, method = "BH") # apply BH adjustment to vector (Benjamini & Hochberg (1995) / FDR)
+p_VPP_ADJ <- matrix(p_adjust_VPP_vector,nrow = 8,ncol = 8) # Transpose adjusted vector to matrix
+colnames(p_VPP_ADJ) <- c("A_mean", "alpha_mean", "lambda_mean", "epP_mean", "epN_mean", "K_mean", "w_mean", "cons_mean") #name columns
+rownames(p_VPP_ADJ) <- c("A_mean", "alpha_mean", "lambda_mean", "epP_mean", "epN_mean", "K_mean", "w_mean", "cons_mean") #name rows
+
+# Print matrix with rounded r values
+round(r_VPP_cormat, 2)
+# Print matrix with adjusted p-valyes
+round(p_VPP_ADJ, 4)
+
+
+# Note, using corr.test to adjust for multiple comparisons provides the same results, but p.adjust gives more decimal places
+VPP_rcorr_BHadjust <- corr.test(HDT_VPP_matrix, method = "spearman", adjust = "fdr")
+print(VPP_rcorr_BHadjust, short = T)
+
+```
+
+
+```{r VPP vs behavioral metrics, include=T}
+
+# create matrix with VPP parameters and behavioral metrics
+HDT_VPP_Behavior_matrix <- as.matrix(HDT_plus[c("A_mean", "alpha_mean", "lambda_mean", "epP_mean", "epN_mean", "K_mean", "w_mean", "cons_mean", "netscore","WS_nonetloss","LS_netloss")])
+
+# run Spearman rank correlations between VPP parameters and behavioral metrics
+VPP_Behavior_cormat<-rcorr(HDT_VPP_Behavior_matrix, type=c("spearman"))
+r_VPP_Behavior_cormat <- VPP_Behavior_cormat$r # Matrix of correlation coefficients
+p_VPP_Behavior_cormat <- VPP_Behavior_cormat$P # Matrix of unadjusted p-values
+
+# Reduce correlation matrix to dataframe with 1 row for each behavioral metric
+r_VPP_Behavior_df <- as.data.frame(r_VPP_Behavior_cormat)[(c(9:11)),-c(9:11),]
+p_VPP_Behavior_df <- as.data.frame(p_VPP_Behavior_cormat)[(c(9:11)),-c(9:11),]
+
+# Make empty matrix for adjusted p-values
+p_VPP_Behavior_ADJ = matrix(nrow = 3, ncol = 8)
+rownames(p_VPP_Behavior_ADJ) <- c(rownames(p_VPP_Behavior_df))
+colnames(p_VPP_Behavior_ADJ) <- c(colnames(p_VPP_Behavior_df))
+
+#Adjust for multiple comparisons within a behavioral metric (correcting for 8 tests) using BH
+BehNameVect <- rownames(r_VPP_Behavior_df)
+for (BehName in BehNameVect) {
+  # add vector of adjusted p-values to matrix
+  adj <- p.adjust(p_VPP_Behavior_df[BehName,], "BH", n = length(p_VPP_Behavior_df))
+  p_VPP_Behavior_ADJ[BehName,] <- adj
+}
+
+# Print matrix with r-values
+round(r_VPP_Behavior_df, 2)
+
+# Print matrix with unadjusted p-values
+round(p_VPP_Behavior_df, 4)
+
+# Print matrix with adjusted p-valuys
+round(p_VPP_Behavior_ADJ, 4)
+
+
+```
+
+# Decision making and participant associations
+
+```{r DM variables and participant characteristics, include=T}
+
+# Continuous participant characteristic (PC) variables: "Child_age_bf", "Child_BMI_zscore", "VB_FF_pre_SLTM"
+# Categorical participant characteristic variables: "Child_Sex", "Mom_Level_edu_recode", "Income2"
+
+#Use rcorr (Hmisc package) and dataframe to create Spearman rank correlation matrices of r and p values
+library(Hmisc)
+library(lme4)
+library(lmerTest)
+
+# create matrix with non-normally distributed DM variables (including netscore) and continous PC variables
+HDT_DM_PC_matrix <- as.matrix(HDT_plus[c("A_mean", "alpha_mean", "lambda_mean", "epP_mean", "epN_mean", "K_mean", "w_mean", "cons_mean", "WS_nonetloss","LS_netloss","netscore", "age_VB", "Child_BMI_zscore","VB_FF_pre_SLTM")])
+
+# Run spearman rank correlations
+correlation_matrix_dm<-rcorr(HDT_DM_PC_matrix, type=c("spearman"))
+
+# create correlation matrix with r and p-values. 
+#Do not adjust p-values in this matrix, because it includes all of the DM/DM correlations, which are part of a separate analysis (see: Decision making associations)
+r_cormat_dm <- correlation_matrix_dm$r # Matrix of correlation coefficients
+p_cormat_unadjust_dm <- correlation_matrix_dm$P # Matrix of unadjusted p-values
+
+#remove columns for decision-making variables (columns 1:11) and rows for non-DM parameters (rows 12:14) to create a dataframe with 1 row for each parameter
+DM_by_parChar_estimates <- as.data.frame(r_cormat_dm)[(c(1:11)),-c(1:11),]
+
+DM_by_parChar_Pval_unadjusted <- as.data.frame(p_cormat_unadjust_dm)[(c(1:11)),-c(1:11),]
+
+# run non-parametric tests with sex, maternal eduation, income
+# Extract estimates and add to DM_by_parChar_estimates. 
+# Extract p-values and add to unadjusted p-value matrix, DM_by_parChar_Pval_unadjusted
+
+ParmNameVect <- rownames(DM_by_parChar_Pval_unadjusted)
+
+for (paramName in ParmNameVect) {
+    Sex_test <- wilcox.test(HDT_plus[,paramName] ~ HDT_plus$Child_Sex, paired = FALSE) #when paired = false, this runs a Wilcoxon rank sum test, equivalent to Mann-Whitney test 
+    DM_by_parChar_estimates[paramName, "Child_Sex"] <- Sex_test$statistic[[1]]
+    DM_by_parChar_Pval_unadjusted[paramName, "Child_Sex"] <- Sex_test$p.value
+    
+    MatEd_test <- kruskal.test(HDT_plus[,paramName] ~ HDT_plus$Mom_edu_recode)
+    DM_by_parChar_estimates[paramName, "Mom_edu_recode"] <- MatEd_test$statistic[[1]]
+    DM_by_parChar_Pval_unadjusted[paramName, "Mom_edu_recode"] <- MatEd_test$p.value
+    
+    Income_test <- kruskal.test(HDT_plus[,paramName] ~ HDT_plus$Income2)
+    DM_by_parChar_estimates[paramName, "Income2"] <- Income_test$statistic[[1]]
+    DM_by_parChar_Pval_unadjusted[paramName, "Income2"] <- Income_test$p.value
+}
+
+
+## For each parameter, create a vector of adjusted p-values (adjustment method = BH/fdr) and add to adjusted p-value matrix ##
+
+# Make empty matrix for adjusted p-values
+DM_by_parChar_Pval_ADJ = matrix(nrow = 11, ncol = 6)
+rownames(DM_by_parChar_Pval_ADJ) <- c(rownames(DM_by_parChar_Pval_unadjusted))
+colnames(DM_by_parChar_Pval_ADJ) <- c(colnames(DM_by_parChar_Pval_unadjusted))
+
+#install.packages("miscTools")
+library("miscTools") # for insertRow, used to insert row into Matrix
+
+for (paramName in ParmNameVect) {
+  # add vector of adjusted p-values to matrix
+  adj <- p.adjust(DM_by_parChar_Pval_unadjusted[paramName,], "BH", n = length(DM_by_parChar_Pval_unadjusted))
+  DM_by_parChar_Pval_ADJ[paramName,] <- adj
+}
+
+# Print dataframe of statistics
+round(DM_by_parChar_estimates, 2)
+
+# Print dataframe of UNadjusted p-values
+round(DM_by_parChar_Pval_unadjusted, digits = 4)
+
+# Print matrix of adjusted p-values
+round(DM_by_parChar_Pval_ADJ, digits = 4) 
+
+```
+
+
+```{r Generate table for categorical participant characteristics, include=T}
+
+ParmNameVect <- c("A_mean", "alpha_mean", "lambda_mean", "epP_mean", "epN_mean", "K_mean", "w_mean", "cons_mean", "WS_nonetloss","LS_netloss","netscore")
+
+cat_table = data.frame(matrix(nrow = 8, ncol = 11))
+colnames(cat_table) <- c(ParmNameVect)
+rownames(cat_table) <- c("Male","Female","MatEd_1","MatEd_2","MatEd_3","Income_1","Income_2","Income_3")
+
+for (paramName in ParmNameVect) {  
+   Med_Male <- format(round(median(HDT_plus[,paramName][HDT_plus$Child_Sex==0]), digits = 2), nsmall =2)
+   IQR_Male <- format(round(IQR(HDT_plus[,paramName][HDT_plus$Child_Sex==0]), digits = 2), nsmall =2)
+   Med_Female <- format(round(median(HDT_plus[,paramName][HDT_plus$Child_Sex==1]), digits = 2), nsmall =2)
+   IQR_Female <- format(round(IQR(HDT_plus[,paramName][HDT_plus$Child_Sex==1]), digits = 2), nsmall =2)
+ 
+   Male <- paste(Med_Male, " ","(", IQR_Male, ")",sep='')
+   Female <- paste(Med_Female," ","(", IQR_Female, ")",sep='')
+   # add to dataframe
+   cat_table["Male",paramName] <- Male
+   cat_table["Female",paramName] <- Female
+
+
+  # calculate by MatEd
+  Med_Ed1 <- format(round(median(HDT_plus[,paramName][HDT_plus$Mom_edu_recode==1]), digits = 2), nsmall =2)
+  IQR_Ed1 <- format(round(IQR(HDT_plus[,paramName][HDT_plus$Mom_edu_recode==1]), digits = 2), nsmall =2)
+  Med_Ed2 <- format(round(median(HDT_plus[,paramName][HDT_plus$Mom_edu_recode==2]), digits = 2), nsmall =2)
+  IQR_Ed2 <- format(round(IQR(HDT_plus[,paramName][HDT_plus$Mom_edu_recode==2]), digits = 2), nsmall =2)
+  Med_Ed3 <- format(round(median(HDT_plus[,paramName][HDT_plus$Mom_edu_recode==3]), digits = 2), nsmall =2)
+  IQR_Ed3 <- format(round(IQR(HDT_plus[,paramName][HDT_plus$Mom_edu_recode==3]), digits = 2), nsmall =2)
+
+  Ed1 <- paste(Med_Ed1, " ","(", IQR_Ed1, ")",sep='')
+  Ed2 <- paste(Med_Ed2," ","(", IQR_Ed2, ")",sep='')
+  Ed3 <- paste(Med_Ed3," ","(", IQR_Ed3, ")",sep='')
+ ###d[[1]][1] 
+    # add to dataframe
+  cat_table["MatEd_1",paramName] <- Ed1
+  cat_table["MatEd_2",paramName] <- Ed2
+  cat_table["MatEd_3",paramName] <- Ed3
+  
+    # calculate by Income
+  Med_Inc1 <- format(round(median(HDT_plus[,paramName][HDT_plus$Income2==1], na.rm = T), digits = 2), nsmall =2)
+  IQR_Inc1 <- format(round(IQR(HDT_plus[,paramName][HDT_plus$Income2==1], na.rm = T), digits = 2), nsmall =2)
+  Med_Inc2 <- format(round(median(HDT_plus[,paramName][HDT_plus$Income2==2], na.rm = T), digits = 2), nsmall =2)
+  IQR_Inc2 <- format(round(IQR(HDT_plus[,paramName][HDT_plus$Income2==2], na.rm = T), digits = 2), nsmall =2)
+  Med_Inc3 <- format(round(median(HDT_plus[,paramName][HDT_plus$Income2==3], na.rm = T), digits = 2), nsmall =2)
+  IQR_Inc3 <- format(round(IQR(HDT_plus[,paramName][HDT_plus$Income2==3], na.rm = T), digits = 2), nsmall =2)
+  
+  Inc1 <- paste(Med_Inc1, " ","(", IQR_Inc1, ")",sep='')
+  Inc2 <- paste(Med_Inc2," ","(", IQR_Inc2, ")",sep='')
+  Inc3 <- paste(Med_Inc3," ","(", IQR_Inc3, ")",sep='')
+  
+  # add to dataframe
+  cat_table["Income_1",paramName] <- Inc1
+  cat_table["Income_2",paramName] <- Inc2
+  cat_table["Income_3",paramName] <- Inc3
+}
+
+cat_table
+```
+
+
+# Path analyses (PA)
+```{r Normalize and scale variables, include=T}
+
+#scale, with default settings, will calculate the mean and standard deviation of the entire vector, then "scale" each element by those values by subtracting the mean and dividing by the sd.
+# output of scale function shows scaled:center (mean) and scaled:scale (sd)
+
+HDT_plus$Ep_scale <- scale(HDT_plus$epP_mean)
+HDT_plus$En_scale <- scale(HDT_plus$epN_mean)
+HDT_plus$k_scale <- scale(HDT_plus$K_mean)
+HDT_plus$A_scale <- scale(HDT_plus$A_mean)
+HDT_plus$alpha_scale <- scale(HDT_plus$alpha_mean)
+HDT_plus$log_lambda_scale = scale(log(HDT_plus$lambda_mean)) 
+ 
+HDT_plus$SLTM_cal_d100 <- HDT_plus$VB_SLTM_Total_Cal_Eaten/100
+HDT_plus$Buffet_cal_d100 <- HDT_plus$VC_Buffet_Total_Cal_Eaten/100
+HDT_plus$EAH_cal_d100 <- HDT_plus$VB_EAH_Total_Cal_Eaten/100
+
+```
+
+
+```{r Initial Perseveration models, include=T}
+#install.packages("lavaan")
+library(lavaan)
+
+####### SLTM #######
+SLTM_P_pathanalysis.model <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*Ep_scale + b*k_scale + c*k_scale:Ep_scale
+Child_BMI_zscore ~ d*SLTM_cal_d100
+'
+SLTM_P <- sem(SLTM_P_pathanalysis.model, data = HDT_plus, estimator = "MLM")
+SLTM_P_summary <- summary(SLTM_P, fit.measures = T, rsquare=TRUE)
+
+####### EAH ########
+
+EAH_P_pathanalysis.model <-'
+# structural model for Y
+EAH_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*k_scale:Ep_scale + e*k_scale:En_scale
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+EAH_P <- sem(EAH_P_pathanalysis.model, data = HDT_plus, estimator = "MLM")
+EAH_P_summary <- summary(EAH_P, fit.measures = T, rsquare=TRUE)
+
+######## Buffet ########
+Buffet_P_pathanalysis.model <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*Ep_scale + b*k_scale + c*k_scale:Ep_scale + d*En_scale + e*k_scale:En_scale
+Child_BMI_zscore ~ f*Buffet_cal_d100
+'
+buffet_P <- sem(Buffet_P_pathanalysis.model, data = HDT_plus, estimator = "MLM")
+buffet_P_summary <- summary(buffet_P, fit.measures = T, rsquare=TRUE)
+
+
+```
+
+```{r Final Perseveration models, include=T}
+#install.packages("lavaan")
+library(lavaan)
+
+####### SLTM #######
+
+# Final model: Interaction between k/ep does not predict intake. do not include
+SLTM_P_pathanalysis.model_final <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*Ep_scale + b*k_scale
+Child_BMI_zscore ~ c*SLTM_cal_d100
+Ep_ind := a*c
+k_ind := b*c
+'
+
+
+SLTM_P_final <- sem(SLTM_P_pathanalysis.model_final, data = HDT_plus, estimator = "MLM")
+SLTM_P_final_summary <- summary(SLTM_P_final, fit.measures = T, rsquare=TRUE)
+
+
+####### EAH ########
+
+# Final model: only interaction between k and en predict intake, leave out k*ep
+EAH_P_pathanalysis.model_final <-'
+# structural model for Y
+EAH_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*k_scale:En_scale
+Child_BMI_zscore ~ f*EAH_cal_d100
+Ep_ind := a*f
+k_ind := b*f
+En_ind := c*f
+EnK_ind := d*f
+'
+
+EAH_P_pathanalysis.model_final <-'
+# structural model for Y
+EAH_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*k_scale:En_scale
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+
+EAH_P_final <- sem(EAH_P_pathanalysis.model_final, data = HDT_plus, estimator = "MLM")
+EAH_P_final_summary <- summary(EAH_P_final, fit.measures = T, rsquare=TRUE)
+
+######## Buffet ########
+
+# Final Model: interactions between k/ep, and  k/En do not predict intake. Do not include
+Buffet_P_pathanalysis.model_final <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale
+Child_BMI_zscore ~ d*Buffet_cal_d100
+Ep_ind := a*d
+k_ind := b*d
+En_ind := c*d
+'
+buffet_P_final <- sem(Buffet_P_pathanalysis.model_final, data = HDT_plus, estimator = "MLM")
+buffet_P_final_summary <- summary(buffet_P_final, fit.measures = T, rsquare=TRUE)
+
+```
+
+
+```{r Initial Expectancy models, include=T}
+
+####### SLTM #######
+
+SLTM_E_pathanalysis.model <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*A_scale + b*alpha_scale + c*A_scale:alpha_scale
+Child_BMI_zscore ~ d*SLTM_cal_d100
+'
+SLTM_E <- sem(SLTM_E_pathanalysis.model, data = HDT_plus, estimator = "MLM")
+SLTM_E_summary <- summary(SLTM_E, fit.measures = T, rsquare=TRUE)
+
+
+####### EAH #######
+
+EAH_E_pathanalysis.model <-'
+# structural model for Y
+EAH_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale + d*A_scale:alpha_scale + e*A_scale:log_lambda_scale
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+EAH_E <- sem(EAH_E_pathanalysis.model, data = HDT_plus, estimator = "MLM")
+EAH_E_summary <- summary(EAH_E, fit.measures = T, rsquare=TRUE)
+
+
+####### Buffet #######
+Buffet_E_pathanalysis.model <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale + d*A_scale:alpha_scale + e*A_scale:log_lambda_scale
+Child_BMI_zscore ~ f*Buffet_cal_d100 
+'
+
+buffet_E <- sem(Buffet_E_pathanalysis.model, data = HDT_plus, estimator = "MLM")
+buffet_E_summary <- summary(buffet_E, fit.measures = T, rsquare=TRUE)
+
+```
+
+
+```{r Final Expectancy models, include=T}
+
+####### SLTM #######
+
+# interaction between A and alpha does not predict intake. Leave commented out
+
+SLTM_E_pathanalysis.model_final <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*A_scale + b*alpha_scale
+Child_BMI_zscore ~ c*SLTM_cal_d100
+A_ind := a*c
+alp_ind := b*c
+'
+SLTM_E_final <- sem(SLTM_E_pathanalysis.model_final, data = HDT_plus, estimator = "MLM")
+SLTM_E_final_summary <- summary(SLTM_E_final, fit.measures = T, rsquare=TRUE)
+
+
+####### EAH #######
+
+# no interactions predict intake. comment out 
+EAH_E_pathanalysis.model_final <-'
+# structural model for Y
+EAH_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale
+Child_BMI_zscore ~ d*EAH_cal_d100
+A_ind := a*d
+alp_ind := b*d
+lam_ind := c*d
+'
+EAH_E_final <- sem(EAH_E_pathanalysis.model_final, data = HDT_plus, estimator = "MLM")
+EAH_E_final_summary <- summary(EAH_E_final, fit.measures = T, rsquare=TRUE)
+
+
+####### Buffet #######
+# interactions between A/alpha and A/lambda do not predict intake. Leave commented out
+# Use logged version of lambda (log_lambda_scale) instead of Lambda_scale
+
+Buffet_E_pathanalysis.model_final <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale
+Child_BMI_zscore ~ d*Buffet_cal_d100 
+A_ind := a*d
+alp_ind := b*d
+lam_ind := c*d
+'
+buffet_E_final <- sem(Buffet_E_pathanalysis.model_final, data = HDT_plus, estimator = "MLM")
+buffet_E_final_summary <- summary(buffet_E_final, fit.measures = T, rsquare=TRUE)
+
+```
+
+# Path Analyses: Sensitivity Analyses
+
+```{r Final models with age covariates, include=T}
+
+# mean center age
+HDT_plus$age_VB_c <- HDT_plus$age_VB - mean(HDT_plus$age_VB)
+
+
+######## SLTM #######
+
+
+### Perseveration ###
+
+SLTM_P_pathanalysis.model_age <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*Ep_scale + b*k_scale + c*age_VB_c
+Child_BMI_zscore ~ d*SLTM_cal_d100
+'
+SLTM_P_age <- sem(SLTM_P_pathanalysis.model_age, data = HDT_plus, estimator = "MLM")
+SLTM_P_age_summary <- summary(SLTM_P_age, fit.measures = T, rsquare=TRUE)
+
+### Expected Value ###
+
+SLTM_E_pathanalysis.model_age <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*A_scale + b*alpha_scale + c*age_VB_c
+Child_BMI_zscore ~ d*SLTM_cal_d100
+'
+SLTM_E_age <- sem(SLTM_E_pathanalysis.model_age, data = HDT_plus, estimator = "MLM")
+SLTM_E_age_summary <- summary(SLTM_E_age, fit.measures = T, rsquare=TRUE)
+
+
+####### EAH #######
+
+### Perseveration ###
+
+EAH_P_pathanalysis.model_age <-'
+# structural model for Y
+EAH_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*k_scale:En_scale + e*age_VB_c
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+EAH_P_age <- sem(EAH_P_pathanalysis.model_age, data = HDT_plus, estimator = "MLM")
+EAH_P_age_summary <- summary(EAH_P_age, fit.measures = T, rsquare=TRUE)
+
+
+### Expectd value ###
+
+EAH_E_pathanalysis.model_age <-'
+# structural model for Y
+EAH_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale + d*age_VB_c
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+EAH_E_age <- sem(EAH_E_pathanalysis.model_age, data = HDT_plus, estimator = "MLM")
+EAH_E_age_summary <- summary(EAH_E_age, fit.measures = T, rsquare=TRUE)
+
+
+####### Buffet #######
+
+### Perseveration ###
+Buffet_P_pathanalysis.model_age <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*age_VB_c
+Child_BMI_zscore ~ e*Buffet_cal_d100
+'
+buffet_P_age <- sem(Buffet_P_pathanalysis.model_age, data = HDT_plus, estimator = "MLM")
+buffet_P_age_summary <- summary(buffet_P_age, fit.measures = T, rsquare=TRUE)
+
+### Expectd Value ###
+Buffet_E_pathanalysis.model_age <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale + d*age_VB
+Child_BMI_zscore ~ e*Buffet_cal_d100 
+'
+buffet_E_age <- sem(Buffet_E_pathanalysis.model_age, data = HDT_plus, estimator = "MLM")
+buffet_E_age_summary <- summary(buffet_E_age, fit.measures = T, rsquare=TRUE)
+
+
+```
+
+```{r Final models with fullness covariates, include=T}
+
+####### SLTM ########
+
+### Perseveration ###
+SLTM_P_pathanalysis.model_FF <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*Ep_scale + b*k_scale + c*VB_FF_pre_SLTM
+Child_BMI_zscore ~ d*SLTM_cal_d100
+ep_ind := a*d
+k_ind := b*d
+'
+# fit the model
+SLTM_P_ff <- sem(SLTM_P_pathanalysis.model_FF, data = HDT_plus, estimator = "MLM")
+SLTM_P_ff_summary <- summary(SLTM_P_ff, fit.measures = T, rsquare=TRUE)
+
+
+### Expected Value ###
+
+SLTM_E_pathanalysis.model_FF <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*A_scale + b*alpha_scale + c*VB_FF_pre_SLTM
+Child_BMI_zscore ~ d*SLTM_cal_d100
+A_ind := a*d
+alpha_ind := b*d
+'
+
+# fit the model
+SLTM_E_ff <- sem(SLTM_E_pathanalysis.model_FF, data = HDT_plus, estimator = "MLM")
+SLTM_E_ff_summary <- summary(SLTM_E_ff, fit.measures = T, rsquare=TRUE)
+
+
+
+####### EAH #######
+
+### Perseveration ###
+
+EAH_P_pathanalysis.model_FF <-'
+# structural model for Y
+EAH_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*k_scale:En_scale + e*VB_FF_pre_EAH
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+# fit the model
+EAH_P_ff <- sem(EAH_P_pathanalysis.model_FF, data = HDT_plus, estimator = "MLM")
+EAH_P_ff_summary <- summary(EAH_P_ff, fit.measures = T, rsquare=TRUE)
+
+### Expected value ###
+
+EAH_E_pathanalysis.model_FF <-'
+# structural model for Y
+EAH_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale + d*VB_FF_pre_EAH
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+# fit the model
+EAH_E_ff <- sem(EAH_E_pathanalysis.model_FF, data = HDT_plus, estimator = "MLM")
+EAH_E_ff_summary <- summary(EAH_E_ff, fit.measures = T, rsquare=TRUE)
+
+####### Buffet #######
+
+### Perseveration ###
+
+Buffet_P_pathanalysis.model_FF <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*VC_FF_pre_Buffet
+Child_BMI_zscore ~ e*Buffet_cal_d100
+'
+# fit the model
+buffet_P_ff <- sem(Buffet_P_pathanalysis.model_FF, data = HDT_plus, estimator = "MLM")
+buffet_P_ff_summary <- summary(buffet_P_ff, fit.measures = T, rsquare=TRUE)
+
+### Expected Value ###
+
+Buffet_E_pathanalysis.model_FF <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale + d*VC_FF_pre_Buffet
+Child_BMI_zscore ~ e*Buffet_cal_d100 
+'
+# fit the model
+buffet_E_ff <- sem(Buffet_E_pathanalysis.model_FF, data = HDT_plus, estimator = "MLM")
+buffet_E_ff_summary <- summary(buffet_E_ff, fit.measures = T, rsquare=TRUE)
+
+```
+
+```{r Final models w/out children w/ compliance/behavior concerns, include=T}
+
+#### Create reduced dataframes based on the following notes ####
+
+# Subj 125, 132, 168: Did not comply with parts of protocol (e.g., did not fast for 3 hr before visit  )
+# Subj 142: Attentional issues during HDT: “First part of HDT wasn’t look at the screen, and was randomly picking doors”
+# Subj 145:	Attentional issues during HDT: "Kept talking during HDT – tried keeping him focused""
+# Subj 160: Attentional issues during HDT: "Complained and talked a lot during HDT"
+
+HDT_reduced = HDT_plus[!(HDT_plus$subjID == "125" | HDT_plus$subjID == "132" | HDT_plus$subjID == "142" | HDT_plus$subjID == "145" | HDT_plus$subjID == "160" | HDT_plus$subjID == "168"),]
+
+
+####### SLTM ########
+
+### Perseveration ###
+SLTM_P_pathanalysis.model_red <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*Ep_scale + b*k_scale
+Child_BMI_zscore ~ c*SLTM_cal_d100
+'
+# fit the model
+SLTM_P_red <- sem(SLTM_P_pathanalysis.model_red, data = HDT_reduced, estimator = "MLM")
+SLTM_P_red_summary <- summary(SLTM_P_red, fit.measures = T, rsquare=TRUE)
+
+
+### Expected Value ###
+
+SLTM_E_pathanalysis.model_red <-'
+# structural model for Y
+SLTM_cal_d100 ~ a*A_scale + b*alpha_scale
+Child_BMI_zscore ~ c*SLTM_cal_d100
+'
+# fit the model
+SLTM_E_red <- sem(SLTM_E_pathanalysis.model_red, data = HDT_reduced, estimator = "MLM")
+SLTM_E_red_summary <- summary(SLTM_E_red, fit.measures = T, rsquare=TRUE)
+
+
+####### EAH #######
+
+### Perseveration ###
+
+EAH_P_pathanalysis.model_red <-'
+# structural model for Y
+EAH_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*k_scale:En_scale
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+# fit the model
+EAH_P_red <- sem(EAH_P_pathanalysis.model_red, data = HDT_reduced, estimator = "MLM")
+EAH_P_red_summary <- summary(EAH_P_red, fit.measures = T, rsquare=TRUE)
+
+### Expectd value ###
+
+EAH_E_pathanalysis.model_red <-'
+# structural model for Y
+EAH_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+# fit the model
+EAH_E_red <- sem(EAH_E_pathanalysis.model_red, data = HDT_reduced, estimator = "MLM")
+EAH_E_red_summary <- summary(EAH_E_red, fit.measures = T, rsquare=TRUE)
+
+
+
+####### Buffet #######
+
+### Perseveration ###
+
+Buffet_P_pathanalysis.model_red <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale
+Child_BMI_zscore ~ g*Buffet_cal_d100
+'
+# fit the model
+buffet_P_red <- sem(Buffet_P_pathanalysis.model_red, data = HDT_reduced, estimator = "MLM")
+buffet_P_red_summary <- summary(buffet_P_red, fit.measures = T, rsquare=TRUE)
+
+### Expected Value ###
+
+Buffet_E_pathanalysis.model_red <-'
+# structural model for Y
+Buffet_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale
+Child_BMI_zscore ~ e*Buffet_cal_d100 
+'
+# fit the model
+buffet_E_red <- sem(Buffet_E_pathanalysis.model_red, data = HDT_reduced, estimator = "MLM")
+buffet_E_red_summary <- summary(buffet_E_red, fit.measures = T, rsquare=TRUE)
+
+
+```
+
+```{r Final EAH models with reduced sample based on hunger, include=T}
+
+#### Make reduced dataframe using 75% threshold ####
+HDT_plus_EAH.75 <- HDT_plus[HDT_plus$VB_FF_pre_EAH >= 112,] #Fullness >= 75%
+
+# Assess size of the reduced sample 
+length(HDT_plus_EAH.75$VB_FF_pre_EAH) #N = 57
+
+#### Perseveration ####
+EAH_P_pathanalysis.model_EAH75 <-'
+# structural model for Y
+EAH_cal_d100 ~ a*Ep_scale + b*k_scale + c*En_scale + d*k_scale:En_scale
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+EAH_P_EAH75 <- sem(EAH_P_pathanalysis.model_EAH75, data = HDT_plus_EAH.75, estimator = "MLM")
+summary(EAH_P_EAH75, fit.measures = T, rsquare=TRUE)
+
+
+#### Expectancy ####
+EAH_E_pathanalysis.model_EAH75 <-'
+# structural model for Y
+EAH_cal_d100 ~ a*A_scale + b*alpha_scale + c*log_lambda_scale
+Child_BMI_zscore ~ f*EAH_cal_d100
+'
+EAH_E_EAH75 <- sem(EAH_E_pathanalysis.model_EAH75, data = HDT_plus_EAH.75, estimator = "MLM")
+summary(EAH_E_EAH75, fit.measures = T, rsquare=TRUE)
+
+
+
+```
+
+# Summarize results from all path analyses
+```{r extract parameter estimates and model fits, include=T}
+
+#List of models:
+models <- c(SLTM_P, EAH_P, buffet_P, SLTM_E, EAH_E, buffet_E, SLTM_P_final, EAH_P_final, buffet_P_final, SLTM_E_final, EAH_E_final, buffet_E_final, SLTM_P_age, EAH_P_age, buffet_P_age, SLTM_E_age, EAH_E_age, buffet_E_age, SLTM_P_ff, EAH_P_ff, buffet_P_ff, SLTM_E_ff, EAH_E_ff, buffet_E_ff, SLTM_P_red, EAH_P_red, buffet_P_red, SLTM_E_red, EAH_E_red, buffet_E_red, EAH_P_EAH75, EAH_E_EAH75)
+
+# Print fit measures of all models
+for (i in 1:32) {
+  # get model fit values
+  modFit <- fitMeasures(models[[i]], fit.measures = c("ntotal","npar","df.scaled","chisq.scaled","pvalue.scaled","cfi.scaled","cfi.robust","srmr","rmsea.robust","aic","bic2"), baseline.model = NULL, output = "vector")
+  #get name of model
+  name <- models[[i]]@call[["model"]]
+  print(name)
+  print(modFit)
+}
+
+# Print model summary with parameter estimates for all models
+for (i in 1:32) {
+  # print estimates
+  name <- models[[i]]@call[["model"]]
+  print(name)
+  print(fitMeasures(models[[i]], fit.measures = c("ntotal"), baseline.model = NULL, output = "vector"))
+  print(parameterEstimates(models[[i]], rsquare = T))
+}
+
+# summary function prints 3 decimals places. Display more decimal places with function below... shows P-value for En*k interaction is <0.001 (0.001 rounded)
+
+parameterEstimates(SLTM_P_red)$pvalue
+parameterEstimates(buffet_P_red)$pvalue
+parameterEstimates(EAH_P_red)$pvalue
+
+parameterEstimates(SLTM_E_red)$pvalue
+parameterEstimates(buffet_E_red)$pvalue
+parameterEstimates(EAH_E_red)$pvalue
+
+parameterEstimates(EAH_P_final)$pvalue
+
+parameterEstimates(EAH_P_EAH75)$pvalue
+
+
+```
+
+# Make figures
+
+```{r Epos scatter plots with ggplot, include=T}
+
+### SLTM and Ep ###
+p_sltm <- ggplot(data = HDT_plus, aes(x=Ep_scale,y=VB_SLTM_Total_Cal_Eaten)) +geom_point()+geom_smooth(method='lm')+labs(y="Intake (kcal)", x="Impact of gain on Perseveration, Ep") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))  +ggtitle("Standard Meal") +  theme(plot.title = element_text(hjust = 0.5)) + theme(axis.text.y = element_text(size = 12, colour = "black")) + theme(axis.text.x = element_text(size = 12, colour = "black"))
+plot(p_sltm)
+  
+### EAH and Ep ###
+p_EAH <- ggplot(data = HDT_plus, aes(x=Ep_scale,y=VB_EAH_Total_Cal_Eaten)) +geom_point()+geom_smooth(method='lm')+labs(y="Intake (kcal)", x="Impact of gain on Perseveration, Ep") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))  +ggtitle("Eating in the Absense of Hunger") +  theme(plot.title = element_text(hjust = 0.5)) + theme(axis.text.y = element_text(size = 12, colour = "black")) + theme(axis.text.x = element_text(size = 12, colour = "black"))
+plot(p_EAH)
+
+### Buffet and Ep ###
+p_buffet <- ggplot(data = HDT_plus, aes(x=Ep_scale,y=VC_Buffet_Total_Cal_Eaten)) +geom_point()+geom_smooth(method='lm')+labs(y="Intake (kcal)", x="Impact of gain on Perseveration, Ep") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +ggtitle("Buffet Meal") +  theme(plot.title = element_text(hjust = 0.5)) + theme(axis.text.y = element_text(size = 12, colour = "black")) + theme(axis.text.x = element_text(size = 12, colour = "black"))
+plot(p_buffet)
+
+# convert scaled value to raw value
+##En
+sd(HDT_plus$epP_mean)*(-2) + mean(HDT_plus$epP_mean) #scaled value of -2 = -8.9 raw
+sd(HDT_plus$epP_mean)*(-1) + mean(HDT_plus$epP_mean) #scaled value of -1 = -4.9 raw
+sd(HDT_plus$epP_mean)*(0) + mean(HDT_plus$epP_mean) #scaled value of 0 = -0.85 raw
+sd(HDT_plus$epP_mean)*(1) + mean(HDT_plus$epP_mean) #scaled value of 1 = -3.2 raw
+
+```
+
+```{r Eneg k EAH coplot, include=T}
+
+# Raw VPP units
+coplot(VB_EAH_Total_Cal_Eaten~epN_mean|K_mean, row = 1, number = 3, overlap = 0.5, xlab = c("The Impact of Loss on Perseveration (En)", "Perseveration Decay (k)"), ylab = "EAH intake (kcal)", panel=function(x,y,...) {
+          points(x,y,pch = 20)
+          #panel.smooth(x,y,span=.8,iter=5,...)
+          abline(lm(y ~ x), col="blue") }, data = HDT_plus)
+
+# Normalized VPP units
+coplot(VB_EAH_Total_Cal_Eaten~En_scale|k_scale, row = 1, number = 3, overlap = 0.5, xlab = c("The Impact of Loss on Perseveration (En)", "Perseveration Decay (k)"), ylab = "EAH intake (kcal)", panel=function(x,y,...) {
+          points(x,y,pch = 20)
+          abline(lm(y ~ x), col="blue") }, data = HDT_plus)
+
+# Determine corresponding values between raw and normalized units
+
+# convert scaled value to raw value
+#En
+sd(HDT_plus$epN_mean)*(-1) + mean(HDT_plus$epN_mean) #scaled value of -1 = -9.66 raw
+sd(HDT_plus$epN_mean)*(0) + mean(HDT_plus$epN_mean) #scaled value of 0 = -5.50 raw
+sd(HDT_plus$epN_mean)*(1) + mean(HDT_plus$epN_mean) #scaled value of 1 = -1.34 raw
+sd(HDT_plus$epN_mean)*(2) + mean(HDT_plus$epN_mean) #scaled value of -1 = -2.82 raw
+
+#k
+sd(HDT_plus$K_mean)*(-2) + mean(HDT_plus$K_mean) #scaled value of -2 = 0.13 raw
+sd(HDT_plus$K_mean)*(-1) + mean(HDT_plus$K_mean) #scaled value of -1 = 0.29 raw
+sd(HDT_plus$K_mean)*(0) + mean(HDT_plus$K_mean) #scaled value of 0 = 0.45 raw
+sd(HDT_plus$K_mean)*(1) + mean(HDT_plus$K_mean) #scaled value of 1 = 0.61 raw
+sd(HDT_plus$K_mean)*(2) + mean(HDT_plus$K_mean) #scaled value of -1 = 0.77 raw
+
+# convert raw value to normalized value
+#En
+(-10 - mean(HDT_plus$epN_mean)) / sd(HDT_plus$epN_mean) #raw value of -10 = -1.08 normalized
+(-5 - mean(HDT_plus$epN_mean)) / sd(HDT_plus$epN_mean) #raw value of -5 = 0.12 normalized
+(0 - mean(HDT_plus$epN_mean)) / sd(HDT_plus$epN_mean) #raw value of 0 = 1.32 normalized
+(5 - mean(HDT_plus$epN_mean)) / sd(HDT_plus$epN_mean) #raw value of 5 = 2.52 normalized
+
+#k
+(.2 - mean(HDT_plus$K_mean)) / sd(HDT_plus$K_mean) #raw value of .2 = -1.57 normalized
+(.5 - mean(HDT_plus$K_mean)) / sd(HDT_plus$K_mean) #raw value of  .5 = 0.31 normalized
+(.7 - mean(HDT_plus$K_mean)) / sd(HDT_plus$K_mean) #raw value of .7 = 1.56 normalized
+(.8 - mean(HDT_plus$K_mean)) / sd(HDT_plus$K_mean) #raw value of .8 =  2.19 normalized
+
+
+# print intervals for conditioning variable
+co.intervals(HDT_plus$k_scale, number = 3, overlap = 0.5)
+co.intervals(HDT_plus$K_mean, number = 3, overlap = 0.5)
+
+
+```

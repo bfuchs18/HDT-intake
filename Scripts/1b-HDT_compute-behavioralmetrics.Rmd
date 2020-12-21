@@ -1,0 +1,97 @@
+---
+title: "Calculate behavioral metrics"
+author: "Bari Fuchs" 
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+This script was written by Bari Fuchs for the HDT and intake study. The purpose of this script is to calculate behavioral metrics (netscore, win-stay, lose-shift) for the Hungry Donkey Task.
+
+# Compile raw data
+```{r Import raw text files, echo = TRUE}
+library(psych)
+library(reshape2)
+library(data.table)
+
+# set basedir to navigate to HDT directory (modify if on different machine)
+basedir <- ("~/OneDrive - The Pennsylvania State University/b-childfoodlab_Shared/Inactive_Studies/DMK_Study/AB_reprocess/HDT/HDT-intake-git")
+
+# set directory for generated databases
+setwd(file.path(basedir,"Data/GeneratedDatabases"))
+
+# Read in compiled raw data
+HDT <-  read.csv("HDT_raw-task-data.csv", stringsAsFactors = FALSE)
+
+```
+
+# Compute Behavioral metrics
+
+```{r Netscore, echo = TRUE}
+
+# Netscore = number of advantagous choices (doors/choice 3 and 4) - disadvantagous choices (doors/choice 1 and 2). Note, door choice is indicated in column "choice"
+
+# Make variables to indicate choice was advantageous or disadvantageous
+HDT$choicetype <- ifelse(HDT$choice > 2, "advantageous", "disadvantageous")
+
+# Make table w/ number of adv. and disadv. choices per person
+netscore_df <- as.data.frame.matrix(table(HDT$subjID, HDT$choicetype))
+netscore_df <- setDT(netscore_df, keep.rownames = "subjID")
+
+# Compute netscore
+netscore_df$netscore <- (netscore_df$advantageous-netscore_df$disadvantageous)
+
+```
+
+
+```{r Winstay/Loseshift, echo = TRUE}
+
+## Definitions: 
+# stay: choice on trial t = choice on trial t-1
+# shift: choice on trial t =/= choice on trial t-1
+# win = trialnet ≥ 0
+# loss = trialnet equal < 0
+# win-stay = proportion of trials where the door chosen on the current trial, t, was the same as the door chosen on the previous trial, t-1, given a “win” (net outcome ≥ zero) on the previous trial; WS = p(stay(t)|win(t-1))
+# lose-shift = proportion of trials where the door chosen on the current trial, t, was different from the door chosen on the previous trial, t-1, given a “loss” (net outcome < zero) on the previous trial; LS = p(shift(t)|loss(t-1))
+
+# Calculate net outcome for each trial ("trialnet")
+HDT$trialnet <- NA 
+HDT$trialnet <- (HDT$gain + HDT$loss)
+
+# Make variables to indicate move (stay/shift) and previous trial outcome (win/loss)
+HDT$move <- NA # variable to indicate if stayed or switched 
+HDT$previous_outcome <- NA # variable to indicate if previous trial was a win or loss
+for (i in 1:nrow(HDT)) {
+  if (HDT$trial[i] > 1) {
+    HDT$move[i] = ifelse(HDT$choice[i] == HDT$choice[i-1], "stay", "shift")
+    HDT$previous_outcome[i] = ifelse(HDT$trialnet[i-1] <0, "loss", "win")
+  }
+}
+
+# Calculate Win-stay and lose-shift
+HDT_prevwin <- HDT[HDT$previous_outcome == "win",]
+HDT_prevloss <- HDT[HDT$previous_outcome == "loss",]
+
+prevwin_df<-as.data.frame.matrix(table(HDT_prevwin$subjID, HDT_prevwin$move))
+prevloss_df<-as.data.frame.matrix(table(HDT_prevloss$subjID, HDT_prevloss$move))
+
+prevwin_df$WS_nonetloss <- prevwin_df$stay / (prevwin_df$stay + prevwin_df$shift)
+prevloss_df$LS_netloss <- prevloss_df$shift / (prevloss_df$stay + prevloss_df$shift)
+
+prevwin_df <- setDT(prevwin_df, keep.rownames = "subjID")
+prevloss_df <- setDT(prevloss_df, keep.rownames = "subjID")
+
+
+```
+
+# Make behavioral_metrics.csv
+```{r Compile and export, echo = TRUE}
+
+temp <- merge(netscore_df[,c("netscore","subjID")], prevwin_df[,c("WS_nonetloss","subjID")], by="subjID")
+behavioral_metrics <- merge(temp, prevloss_df[,c("LS_netloss","subjID")], by="subjID")
+
+## Export
+
+write.csv(behavioral_metrics,'HDT_behavioral_metrics.csv')
+
+```

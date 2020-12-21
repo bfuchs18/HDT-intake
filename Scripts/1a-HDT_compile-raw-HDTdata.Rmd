@@ -1,0 +1,45 @@
+---
+Title: "Compile raw HDT data"
+author: "Bari Fuchs" 
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+This script was written by Bari Fuchs for the HDT and intake study. The purpose of this script is to compile exported Hungry Donkey Task text files for all participants into 1 csv file.
+
+# Compile raw data
+```{r Import raw text files, echo = TRUE}
+library(psych)
+library(reshape2)
+
+# set basedir to navigate to HDT directory (modify if on different machine)
+basedir <- ("~/OneDrive - The Pennsylvania State University/b-childfoodlab_Shared/Inactive_Studies/DMK_Study/AB_reprocess/HDT/HDT-intake-git")
+
+# set directory for raw data files
+setwd(file.path(basedir,"Data/HDT-ExportedTextFiles"))
+
+# load all files into a list and then use rbind to concatenate into 1 file
+temp = list.files(pattern = "*.txt")
+files = lapply(temp, read.delim, header = TRUE)
+HDT_completedataset <- do.call(rbind, files)
+
+# isolate variables of interest
+HDT <- HDT_completedataset[,c("Subject","Block","DoorChoice","Winstbedrag","Verliesbedrag")]
+
+# rename variables in smaller datafram
+colnames(HDT) <- c("subjID","trial","choice","gain","loss")
+
+```
+
+```{r Export compiled data, echo = TRUE}
+
+# set directory to export data to
+setwd(file.path(basedir,"Data/GeneratedDatabases"))
+
+# write out csv and text files
+write.csv(HDT,'HDT_raw-task-data.csv', row.names=FALSE)
+write.table(HDT, file = "HDT_raw-task-data.txt", sep = "\t", row.names = FALSE, quote = FALSE)
+
+```
+

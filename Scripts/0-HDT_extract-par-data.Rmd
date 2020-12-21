@@ -1,0 +1,66 @@
+---
+title: Extract participant data
+author: "Bari Fuchs" 
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+This script was written by Bari Fuchs to compile participant data (not including decision-making variables) used in the paper 
+"Decision-making processes related to perseveration are indirectly associated with weight status in children through laboratory assessed energy intake". Data for this study were drawn from a larger, cross-sectional study on the associations between decision-making, eating behavior, and weight status in children (NCT02855398). 
+
+The output of this script will be HDT_participant_data.csv that can be combined with decision-making dataframes in 3-HDT_compile-databases.Rmd.
+
+No variables will be computed in this script, only extracted from Shana Adise's larger study datasets.
+
+#Isolate variables
+```{r Import variables from Shana's HDT_SPSS_dataset, echo = TRUE}
+library(plyr)
+library(dplyr)
+
+# set basedir to navigate to HDT directory (modify if on different machine)
+basedir <- ("~/OneDrive - The Pennsylvania State University/b-childfoodlab_Shared/Inactive_Studies/DMK_Study/AB_reprocess/HDT/")
+
+# set directory for Shana's datasets
+setwd(file.path(basedir,"Spreadsheets/ShanaSpreadsheet_NOTREPROCESSED"))
+
+# Read in Shana's datasets
+Shana <-  read.csv("HDT_SPSS_database_10blocks_2_23_2017_CLB.csv", stringsAsFactors = FALSE)
+Shana2 <-  read.csv("DMK_main_updated_8_18_2020_BF_transpose.csv", stringsAsFactors = FALSE)
+
+# change ID variable name to subjID
+names(Shana)[names(Shana)=="ID"] <- "subjID"
+names(Shana2)[names(Shana2)=="ID"] <- "subjID"
+
+#Extract subj ID, height, weight, BMI variables from Shana
+Shana_less <- Shana[,c(1,25:32)] #subj ID, height, weight, BMI variables
+
+#Extract demographics, sex, parents, EAH variables from Shana2
+Shana2_less <- Shana2[,c(1,4:7,11,12,28,32,36,40,83:84,112:116,224,228,275:278,461:467,575:578)] 
+Shana2_less$subjID <- as.numeric(Shana2_less$subjID)
+
+# Extract liking variables
+liking <- select(Shana2, starts_with("VB_Like"),starts_with("VC_Like"))
+liking$subjID <- as.numeric(Shana2_less$subjID)
+```
+
+```{r Make new dataframe, echo = TRUE}
+
+HDT_temp <- merge(Shana_less, Shana2_less, by="subjID")
+HDT_participant_data <- merge(HDT_temp, liking, by="subjID")
+```
+
+
+# Export file
+```{r Export, echo = TRUE}
+
+# Set directory to export file to
+setwd(file.path(basedir,"HDT-intake-git/Data/GeneratedDatabases"))
+
+# write file
+write.csv(HDT_participant_data,'HDT_participant_data.csv')
+
+
+```
+
+
